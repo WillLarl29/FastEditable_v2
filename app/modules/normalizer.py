@@ -275,8 +275,17 @@ class NormalizerScreen(BaseScreen):
     def _analyze_column(self, col: str):
         series = self.df[col].dropna().astype(str)
         raw_groups: dict = {}
+        
+        # Usar normalización especializada para "Programa"
+        is_programa = col.lower() == "programa"
+        
         for val in series:
-            key = _norm_key(val)
+            # Aplicar la normalización apropiada
+            if is_programa:
+                key = _normalize_programa(val)
+            else:
+                key = _norm_key(val)
+            
             raw_groups.setdefault(key, {})
             raw_groups[key][val] = raw_groups[key].get(val, 0) + 1
 
