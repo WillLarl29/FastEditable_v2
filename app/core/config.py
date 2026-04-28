@@ -1,0 +1,5 @@
+# app/core/config.py
+APP_TITLE   = "FILTER — MEDICIONES"
+APP_WIDTH   = 1100
+APP_HEIGHT  = 780
+APP_VERSION = "2.0"
