@@ -5,6 +5,8 @@ import os
 import pandas as pd
 import tkinter as tk
 from tkinter import filedialog, messagebox
+import unicodedata
+import re
 
 from app.ui import styles as s
 from app.ui.components import (
@@ -16,6 +18,39 @@ from app.ui.layouts import BaseScreen
 
 def _norm_key(val: str) -> str:
     return val.strip().lower()
+
+
+def _normalize_programa(val: str) -> str:
+    """
+    Normaliza valores de la columna "Programa" según reglas especificadas:
+    - Convertir a minúscula
+    - Eliminar caracteres especiales: : , . ( )
+    - Eliminar términos específicos: (online), (presencial), G2
+    - Quitar tildes
+    """
+    if not val or not isinstance(val, str):
+        return ""
+    
+    # Convertir a minúscula
+    text = val.strip().lower()
+    
+    # Eliminar términos específicos (con manejo de espacios)
+    text = re.sub(r'\(online\)', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\(presencial\)', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bG2\b', '', text, flags=re.IGNORECASE)
+    
+    # Eliminar caracteres especiales: : , . ( )
+    text = text.replace(':', '').replace(',', '').replace('.', '')
+    text = text.replace('(', '').replace(')', '')
+    
+    # Quitar tildes (normalización Unicode)
+    text = unicodedata.normalize('NFD', text)
+    text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+    
+    # Limpiar espacios múltiples
+    text = ' '.join(text.split())
+    
+    return text
 
 
 class NormalizerScreen(BaseScreen):
@@ -327,7 +362,13 @@ class NormalizerScreen(BaseScreen):
         self._variant_vars.clear()
 
         best = max(info["variants"], key=info["variants"].get)
-        self._replace_var.set(best)
+        
+        # Aplicar normalización automática si la columna es "Programa"
+        if self._selected_col and self._selected_col.lower() == "programa":
+            normalized_value = _normalize_programa(best)
+            self._replace_var.set(normalized_value)
+        else:
+            self._replace_var.set(best)
 
         self._group_title.config(text=f'"{key}"')
         self._group_info.config(
