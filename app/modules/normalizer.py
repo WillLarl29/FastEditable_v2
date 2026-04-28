@@ -25,19 +25,38 @@ def _normalize_programa(val: str) -> str:
     Normaliza valores de la columna "Programa" según reglas especificadas:
     - Convertir a minúscula
     - Eliminar caracteres especiales: : , . ( )
-    - Eliminar términos específicos: (online), (presencial), G2
+    - Eliminar términos específicos según PALABRAS_A_ELIMINAR
     - Quitar tildes
     """
     if not val or not isinstance(val, str):
         return ""
     
+    # Lista de palabras/frases a eliminar (mantenible y escalable)
+    # Frases completas (con espacios o caracteres especiales)
+    FRASES_A_ELIMINAR = [
+        r'\(online\)',
+        r'\(presencial\)',
+        r'\(debe cambiarle el nombre\)',
+        r'\(ver profesor\)',
+    ]
+    
+    # Palabras individuales (se elimina solo la palabra completa, no subcadenas)
+    # Ejemplo: "ok" se elimina, pero "okr" NO se toca
+    PALABRAS_A_ELIMINAR = [
+        r'\bG2\b',
+        r'\bok\b',  # Solo "ok" como palabra completa, no "okr", "OKR", etc.
+    ]
+    
     # Convertir a minúscula
     text = val.strip().lower()
     
-    # Eliminar términos específicos (con manejo de espacios)
-    text = re.sub(r'\(online\)', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'\(presencial\)', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'\bG2\b', '', text, flags=re.IGNORECASE)
+    # Eliminar frases específicas
+    for frase in FRASES_A_ELIMINAR:
+        text = re.sub(frase, '', text, flags=re.IGNORECASE)
+    
+    # Eliminar palabras específicas (respetando límites de palabra)
+    for palabra in PALABRAS_A_ELIMINAR:
+        text = re.sub(palabra, '', text, flags=re.IGNORECASE)
     
     # Eliminar caracteres especiales: : , . ( )
     text = text.replace(':', '').replace(',', '').replace('.', '')
