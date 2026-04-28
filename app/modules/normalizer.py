@@ -36,10 +36,13 @@ def _normalize_programa(val: str) -> str:
     FRASES_A_ELIMINAR = [
         r'\(online\)',
         r'\(presencial\)',
+        r'\(ONLINE\)',
+        r'\(PRESENCIAL\)',
         r'\(debe cambiarle el nombre\)',
+        r'\(ok madre ti y colocarlo en administración tambien\)',
         r'\(ver profesor\)',
     ]
-    
+     
     # Palabras individuales (se elimina solo la palabra completa, no subcadenas)
     # Ejemplo: "ok" se elimina, pero "okr" NO se toca
     PALABRAS_A_ELIMINAR = [
