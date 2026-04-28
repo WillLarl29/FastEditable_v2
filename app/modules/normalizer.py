@@ -1,6 +1,7 @@
 # app/modules/normalizer.py
 """Módulo: Normalizar valores — detecta y unifica variantes de texto similares."""
 
+import difflib
 import os
 import pandas as pd
 import tkinter as tk
@@ -20,59 +21,302 @@ def _norm_key(val: str) -> str:
     return val.strip().lower()
 
 
-def _normalize_programa(val: str) -> str:
-    """
-    Normaliza valores de la columna "Programa" según reglas especificadas:
-    - Convertir a minúscula
-    - Eliminar caracteres especiales: : , . ( )
-    - Eliminar términos específicos según PALABRAS_A_ELIMINAR
-    - Quitar tildes
-    """
+# ── CU: lista canónica de programas ──────────────────────────────────────────
+_CANONICAL_PROGRAMS_CU = [
+    "administración de la demanda y compras estratégicas",
+    "administración de la empresa finanzas y gestión de negocios",
+    "administración de operaciones y procesos de negocio herramientas claves de gestión",
+    "administración logística y cadena de inventarios",
+    "administración management aplicando scrum en equipos y otras metodologías de agilidad",
+    "agile management aplicando scrum en equipos y otros metodos de agilidad organizacional",
+    "agile management framework agile y scrum para equipos agiles",
+    "analitica e inteligencia de negocios",
+    "ai driven economics inteligencia artificial para analizar trafico y ventas",
+    "analisis continuo de distribucion y planificacion estrategica",
+    "analisis cuantitativo para la toma de decisiones",
+    "analisis de datos con el uso de ia y big data",
+    "analisis de datos inteligencia de negocios",
+    "analisis de riesgos crediticios",
+    "arquitectura de microservicios",
+    "analisis y visualizacion de estados financieros a mediano y largo plazo",
+    "analisis de datos con machine learning",
+    "analitica empresarial con machine learning",
+    "analitica web",
+    "analitica y visualizacion con power bi y excel analitico",
+    "aplicacion de metodologias agile en la gestion de proyectos",
+    "arquitectura de centro de datos",
+    "arquitectura de soluciones con tecnologias de la informacion",
+    "auditoria de tecnologia de la informacion",
+    "benchmarking de relaciones entorno mas practicos",
+    "big data inteligencia artificial analisis para la practica",
+    "bsc medicion e indicadores estrategicos de gestion",
+    "buenas practicas para la obra",
+    "buen gobierno compliance y gestion de riesgos empresariales",
+    "business analytics para marketing enfoque aplicativo",
+    "business intelligence",
+    "business process management",
+    "cambio climatico y negocio",
+    "cadena de suministro y logistica",
+    "chief technology officer cto",
+    "coaching de equipos hacia la agilidad",
+    "coaching ejecutivo herramienta estrategica para el alto desempeno",
+    "coaching y modelo en equipo",
+    "compliance y gobierno corporativo",
+    "compliance auditoria operativa y financiera",
+    "comunicacion asertiva",
+    "comunicacion estrategica efectividad en la resolucion de conflictos y el trabajo en equipo",
+    "comunicacion 30 generando valor un enfoque personal",
+    "compras insight innovacion",
+    "contabilidad financiera y general",
+    "contabilidad de gestion",
+    "control y contabilidad de costos",
+    "contabilidad general y financiera avanzada",
+    "contabilidad y finanzas para no especialistas",
+    "content marketing influencer marketing",
+    "control interno experiencia practica",
+    "ciberseguridad y seguridad de la informacion",
+    "costos y la gerencia",
+    "costos y presupuestos",
+    "creacion de nuevos productos y servicios",
+    "crecimiento en relaciones entorno mas practicos",
+    "customer experience gestion de la experiencia del cliente",
+    "customer centric management",
+    "customer journey management",
+    "decisiones financieras de corto plazo",
+    "design laboral",
+    "desarrollo ejecutivo con por e inteligencia emocional",
+    "data modeling para la innovacion",
+    "design thinking innovar a traves del pensamiento creativo",
+    "direccion de marketing y ventas blended strategy",
+    "direccion estrategica del talento humano",
+    "diseno de campanas multipagadoras online y offline",
+    "diseno de estrategias de contenido para marketing digital",
+    "diseno y gestion de procesos para la innovacion empresarial",
+    "diseno analisis y valorizacion de puestos",
+    "ecosistemas",
+    "evaluacion financiera de proyectos y situaciones para la toma de decisiones",
+    "evaluacion financiera de emprendimientos corporativos y estrategicas de crecimiento",
+    "finanzas internacionales y cobertura cambiaria",
+    "finanzas para la toma de decisiones gerenciales",
+    "finanzas corporativas",
+    "forecasting advanced planning and scheduling o optimizacion de la cadena de abastecimiento",
+    "fundamentos de gestion de proyectos metodologias agil y tradicional para proyectos",
+    "fundamentos de inteligencia artificial para los negocios",
+    "fiscal avanzado",
+    "gestion del cambio",
+    "gerencia de compras y abastecimiento",
+    "gestion de almacenes e inventarios avanzado",
+    "gestion de almacenes aplicacion caso andaluzon",
+    "gestion de arquitectura tecnologica de informacion",
+    "gestion de compensaciones y beneficios",
+    "gestion de costos de las tecnologias de informacion",
+    "gestion de deuda y activos publicos",
+    "gestion industrial basic",
+    "gestion de la tesoreria",
+    "gestion del conocimiento e innovacion thinking lean startup scrum",
+    "gestion agil de proyectos de procesos para la era digital con product scrum kanban y design thinking",
+    "gestion del deuda e ira digital",
+    "gestion de marca y estrategia para startups y marketing empresas globales",
+    "gestion de compensacion y beneficios y su impacto en las compras",
+    "gestion de conflictos y soluciones",
+    "gestion de equipos de alto desempeno",
+    "gestion de equipos en entornos vuca y herramientas para empresas globales",
+    "gestion de herramientas y eficacias y su impacto en las compras",
+    "gestion de la cadena de suministros",
+    "gestion de la compensacion implementando la ley de equidad salarial",
+    "gestion de la innovacion con colaboracion",
+    "gestion de la mejora continua",
+    "gestion de la seguridad y proteccion de datos personales",
+    "gestion de la sostenibilidad empresarial",
+    "gestion de metricas para la innovacion",
+    "gestion de infraestructura de ti",
+    "gestion de proyectos agiles",
+    "gestion de proyectos complejos",
+    "gestion de proyectos con impacto estrategico",
+    "gestion de proyectos de software",
+    "gestion de recursos en proyectos",
+    "gestion del cambio organizacional",
+    "gestion de riesgos financieros",
+    "gestion de riesgos en contratos",
+    "gestion de riesgo empresarial y estrategico",
+    "gestion de tesoreria",
+    "gestion del cambio y adaptacion de la cultura organizacional",
+    "gestion del capital de trabajo y flujo efectivo",
+    "gestion financiera",
+    "gestion estrategica con el uso de la metodologia kanban agile",
+    "gestion de personas con base en indicadores de personas",
+    "gestion del personal segun el codigo del trabajo",
+    "gestion de proyectos agiles para empresas globales",
+    "gestion de ti infraestructura",
+    "gestion de ti y gestion de proyectos de ti",
+    "gestion estrategica y gobernanza de datos",
+    "growth hacking",
+    "gestion logistica",
+    "gestion logistica maritima",
+    "gestion y coaching integrado el liderazgo la corporeidad y las emociones",
+    "gestion y coaching integrado liderazgo o manejo",
+    "gestion y marketing de la experiencia",
+    "gestion y analisis de la informacion",
+    "gestion y direccion de personas y talento",
+    "growth hacking estrategias de crecimiento acelerado",
+    "herramientas de analitica aplicadas a la gestion comercial",
+    "herramientas de gestion y control para empresas globales",
+    "herramientas para datos marketing",
+    "herramientas financieras para dar informacion economica y auditoria de sostenibilidad en la empresa",
+    "herramientas financieras para dar propuestas compradores",
+    "herramientas para el analisis de datos",
+    "herramientas para la gerencia de proyectos",
+    "herramientas para la gestion de la innovacion",
+    "herramientas tecnologicas para la gestion y comunicacion empresarial",
+    "implementacion agil de procesos con design thinking y gobernando con scrum",
+    "implementacion de herramientas de produccion y modelos para la trasposicion risk management",
+    "indicadores de gestion financiera",
+    "indicadores de gestion financieros",
+    "innovacion creacion de valor para el negocio de procesos",
+    "innovacion y diseno de servicios",
+    "innovacion y gestion de la innovacion por inteligencia artificial",
+    "innovacion y creacion de productos experimentados y su creacion de valor",
+    "innovacion y creacion de propuestas a traves de la estrategia de la recuperacion",
+    "inteligencia artificial",
+    "inteligencia artificial para la gestion de proyectos",
+    "inteligencia de mercado",
+    "inteligencia emocional y liderazgo",
+    "inteligencia emocional gestion de si mismo y la bolsa de valores",
+    "inteligencia de negocios",
+    "key account management",
+    "liderazgo consciente y estrategico",
+    "liderazgo y gestion de equipos",
+    "la gestion del talento como palanca de la transformacion digital",
+    "liderazgo de alto impacto",
+    "liderazgo e inteligencia emocional",
+    "liderazgo y coaching",
+    "liderazgo y toma de decisiones",
+    "lean management",
+    "logistica y distribucion aplicada a finanzas",
+    "marketing analytics 2 en 1 online offline decisiones basadas en datos",
+    "marketing digital",
+    "marketing de contenidos y plataformas digitales para estrategias empresariales",
+    "marketing de servicios y experiencia del cliente",
+    "marketing en linea seo social media y decisiones estrategicas",
+    "marketing tecnologico",
+    "metodologia del agile",
+    "metodologia integral para la creacion y gestion de negocios business model canvas",
+    "modelo de marketing",
+    "modelo de negocio",
+    "modelos y estrategias de agronegocios",
+    "negociacion para ejecutivos de alta direccion",
+    "inspeccion yo ventas de ventas en red nuevo b2b metricas y estrategias avanzadas",
+    "negociacion y tecnicas de venta",
+    "normas internacionales y tributacion",
+    "optimizacion de alta ejecucion y financiero",
+    "optimizacion de almacenes y distribucion",
+    "optimizacion de la cadena de distribucion y financiero",
+    "optimizacion de procesos con power bi y finanzas",
+    "perspectivas de negocio con potencial e inteligencia artificial",
+    "plan comercial efectivo",
+    "planeamiento",
+    "plan estrategico de marketing digital",
+    "planeamiento estrategico",
+    "planeamiento estrategico y control de la produccion",
+    "planeamiento y gestion en organizaciones sin fines de lucro",
+    "planeamiento financiero y analisis de variaciones con excel",
+    "planificacion estrategica comercial para mercados competitivos",
+    "planificacion estrategica aplicacion",
+    "presentaciones efectivas del alto ejecutivo",
+    "presentaciones efectivas de alto impacto",
+    "product management",
+    "project management avanzado",
+    "propuesta estrategica diseno implementacion y control",
+    "reclutamiento y seleccion",
+    "relaciones y comunicacion de marketing digital",
+    "retail management",
+    "revenue management",
+    "seguridad industrial",
+    "sistema de costos abc",
+    "smart digital marketing con ia",
+    "storytelling para presentaciones efectivas",
+    "supply chain management",
+    "talento y organizacion claves del cambio",
+    "tecnicas para calculos para alinear los datos incluyendo el ruido hacia el aprendizaje de maquina",
+    "tecnologias emergentes cueva en el marketing",
+    "tecnologias en ai marketing",
+    "trade marketing para el retail",
+    "tendencia de mercado",
+    "transformacion de las instituciones del sector educacion hacia modelos con tecnologia e inteligencia artificial",
+    "transformacion logistica al mundo digital",
+    "transformacion digital basada en datos",
+    "transformacion digital con experiencias innovadoras",
+    "transformacion digital en organizaciones",
+    "transformacion digital y los retos del profesional de sistemas",
+    "transformacion digital y gobernanza de datos",
+    "transforming rodearlo singletones y tendencias del cambia",
+    "ui ux design metodologia de innovacion",
+    "valorizacion de acciones y activos financieros para la toma de decisiones",
+]
+
+# Pre-computado al cargar el módulo — sin costo en tiempo de ejecución
+_CANONICAL_CU_INDEX = {k: k for k in _CANONICAL_PROGRAMS_CU}
+
+
+def _basic_normalize(val: str) -> str:
+    """Transformación de texto pura: minúsculas, sin tildes ni caracteres especiales."""
     if not val or not isinstance(val, str):
         return ""
-    
-    # Lista de palabras/frases a eliminar (mantenible y escalable)
-    # Frases completas (con espacios o caracteres especiales)
+
     FRASES_A_ELIMINAR = [
-        r'\(online\)',
-        r'\(presencial\)',
-        r'\(ONLINE\)',
-        r'\(PRESENCIAL\)',
+        r'\(online\)', r'\(presencial\)', r'\(ONLINE\)', r'\(PRESENCIAL\)',
         r'\(debe cambiarle el nombre\)',
         r'\(ok madre ti y colocarlo en administración tambien\)',
         r'\(ver profesor\)',
     ]
-     
-    # Palabras individuales (se elimina solo la palabra completa, no subcadenas)
-    # Ejemplo: "ok" se elimina, pero "okr" NO se toca
-    PALABRAS_A_ELIMINAR = [
-        r'\bG2\b',
-        r'\bok\b',  # Solo "ok" como palabra completa, no "okr", "OKR", etc.
-    ]
-    
-    # Convertir a minúscula
+    PALABRAS_A_ELIMINAR = [r'\bG2\b', r'\bok\b']
+
     text = val.strip().lower()
-    
-    # Eliminar frases específicas
     for frase in FRASES_A_ELIMINAR:
         text = re.sub(frase, '', text, flags=re.IGNORECASE)
-    
-    # Eliminar palabras específicas (respetando límites de palabra)
     for palabra in PALABRAS_A_ELIMINAR:
         text = re.sub(palabra, '', text, flags=re.IGNORECASE)
-    
-    # Eliminar caracteres especiales: : , . ( )
+
     text = text.replace(':', '').replace(',', '').replace('.', '')
-    text = text.replace('(', '').replace(')', '')
-    
-    # Quitar tildes (normalización Unicode)
+    text = text.replace('(', '').replace(')', '').replace('¿', '').replace('?', '')
+    text = text.replace('&', '').replace('+', '').replace('-', ' ').replace('/', ' ')
+
     text = unicodedata.normalize('NFD', text)
     text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
-    
-    # Limpiar espacios múltiples
     text = ' '.join(text.split())
-    
     return text
+
+
+def _normalize_programa_cu(val: str) -> str:
+    """Normalización CU: transformación base + fuzzy match al diccionario canónico."""
+    norm = _basic_normalize(val)
+    if not norm:
+        return ""
+    if norm in _CANONICAL_CU_INDEX:
+        return norm
+    matches = difflib.get_close_matches(norm, _CANONICAL_PROGRAMS_CU, n=1, cutoff=0.82)
+    return matches[0] if matches else norm
+
+
+def _normalize_programa_c5(val: str) -> str:
+    """Normalización C5 para columna Programa (por definir)."""
+    if not val or not isinstance(val, str):
+        return ""
+    return _norm_key(val)
+
+
+def _normalize_programa_re(val: str) -> str:
+    """Normalización RE para columna Programa (por definir)."""
+    if not val or not isinstance(val, str):
+        return ""
+    return _norm_key(val)
+
+
+_PROGRAMA_NORMALIZERS = {
+    "CU": _normalize_programa_cu,
+    "C5": _normalize_programa_c5,
+    "RE": _normalize_programa_re,
+}
 
 
 class NormalizerScreen(BaseScreen):
@@ -84,10 +328,15 @@ class NormalizerScreen(BaseScreen):
         self._selected_col: str | None = None
         self._groups: dict = {}
         self._variant_vars: dict = {}
+        self._norm_type: str = "CU"
+
+    def _get_norm_key(self, val: str, col: str) -> str:
+        if col.lower() == "programa":
+            return _PROGRAMA_NORMALIZERS.get(self._norm_type, _norm_key)(val)
+        return _norm_key(val)
 
     # ── shell ─────────────────────────────────────────────────────────────────
     def build_body(self, parent):
-        # Barra superior
         action_bar = tk.Frame(parent, bg=s.C_BG, pady=10)
         action_bar.pack(fill="x", padx=s.PAD_LG)
 
@@ -99,9 +348,24 @@ class NormalizerScreen(BaseScreen):
                                         command=self._export, state="disabled")
         self._btn_export.pack(side="right")
 
+        # Selector de tipo: CU / C5 / RE
+        type_frame = tk.Frame(action_bar, bg=s.C_BG)
+        type_frame.pack(side="right", padx=(0, 16))
+        tk.Label(type_frame, text="Tipo:", font=s.F_BTN_SM,
+                 bg=s.C_BG, fg=s.C_GRAY).pack(side="left", padx=(0, 8))
+
+        self._type_btns: dict = {}
+        for t in ("CU", "C5", "RE"):
+            btn = tk.Label(type_frame, text=t, font=s.F_BTN_SM,
+                           padx=14, pady=5, cursor="hand2", relief="flat", bd=0)
+            btn.pack(side="left", padx=2)
+            self._type_btns[t] = btn
+            btn.bind("<Button-1>", lambda e, nt=t: self._set_norm_type(nt))
+
+        self._refresh_type_btns()
+
         Divider(parent).pack(fill="x")
 
-        # Layout 3 columnas
         pane = tk.Frame(parent, bg=s.C_BG)
         pane.pack(fill="both", expand=True, padx=s.PAD_LG, pady=s.PAD_SM)
 
@@ -118,6 +382,20 @@ class NormalizerScreen(BaseScreen):
         p3 = tk.Frame(pane, bg=s.C_BG)
         p3.pack(side="left", fill="both", expand=True)
         self._build_editor_panel(p3)
+
+    def _set_norm_type(self, norm_type: str):
+        self._norm_type = norm_type
+        self._refresh_type_btns()
+        if self._selected_col and self.df is not None:
+            self._analyze_column(self._selected_col)
+            self._hide_editor()
+
+    def _refresh_type_btns(self):
+        for t, btn in self._type_btns.items():
+            if t == self._norm_type:
+                btn.config(bg=s.C_RED, fg="white")
+            else:
+                btn.config(bg=s.C_BG_CARD, fg=s.C_GRAY)
 
     # ── Panel 1: columnas ─────────────────────────────────────────────────────
     def _build_columns_panel(self, parent):
@@ -145,7 +423,6 @@ class NormalizerScreen(BaseScreen):
         self._groups_badge = Badge(hdr, "—", kind="neutral")
         self._groups_badge.pack(side="left", padx=6)
 
-        # Buscador
         self._search_var = tk.StringVar()
         self._search_var.trace_add("write", lambda *_: self._refresh_groups_list())
         search_e = tk.Entry(parent, textvariable=self._search_var,
@@ -164,8 +441,12 @@ class NormalizerScreen(BaseScreen):
 
     # ── Panel 3: editor ───────────────────────────────────────────────────────
     def _build_editor_panel(self, parent):
-        tk.Label(parent, text="EDITOR DE NORMALIZACIÓN", font=s.F_BTN_SM,
-                 bg=s.C_BG, fg=s.C_GRAY_LT).pack(anchor="w", pady=(0, 6))
+        editor_hdr = tk.Frame(parent, bg=s.C_BG)
+        editor_hdr.pack(fill="x", pady=(0, 6))
+        tk.Label(editor_hdr, text="EDITOR DE NORMALIZACIÓN", font=s.F_BTN_SM,
+                 bg=s.C_BG, fg=s.C_GRAY_LT).pack(side="left")
+        self._programs_count_badge = Badge(editor_hdr, "", kind="neutral")
+        self._programs_count_badge.pack(side="left", padx=8)
 
         self._editor_card = Card(parent)
         self._editor_card.pack(fill="both", expand=True)
@@ -178,53 +459,63 @@ class NormalizerScreen(BaseScreen):
         )
         self._placeholder.pack(expand=True)
 
-        # Contenido del editor (oculto inicialmente)
+        # Editor inner (oculto inicialmente)
         self._editor_inner = tk.Frame(self._editor_card, bg=s.C_BG_CARD)
 
+        # ── Sección superior: título y campo de reemplazo ──────────────────
+        top = tk.Frame(self._editor_inner, bg=s.C_BG_CARD)
+        top.pack(fill="x", padx=16, pady=(14, 0))
+
         self._group_title = tk.Label(
-            self._editor_inner, text="", font=s.F_H1,
+            top, text="", font=s.F_H1,
             bg=s.C_BG_CARD, fg=s.C_DARK, wraplength=420, justify="left",
         )
         self._group_title.pack(anchor="w", pady=(0, 4))
 
-        self._group_info = Badge(self._editor_inner, "", kind="warn")
+        self._group_info = Badge(top, "", kind="warn")
         self._group_info.pack(anchor="w", pady=(0, 10))
 
-        Divider(self._editor_inner).pack(fill="x", pady=(0, 12))
+        Divider(top).pack(fill="x", pady=(0, 12))
 
-        # Campo "normalizar a:"
-        tk.Label(self._editor_inner, text="Normalizar a:",
+        tk.Label(top, text="Normalizar a:",
                  font=s.F_BTN_SM, bg=s.C_BG_CARD, fg=s.C_GRAY).pack(anchor="w")
         self._replace_var = tk.StringVar()
         self._replace_entry = tk.Entry(
-            self._editor_inner, textvariable=self._replace_var,
+            top, textvariable=self._replace_var,
             font=("Segoe UI", 13), bg=s.C_BG,
             relief="flat", highlightbackground=s.C_RED, highlightthickness=2,
         )
-        self._replace_entry.pack(fill="x", pady=(4, 16), ipady=7)
+        self._replace_entry.pack(fill="x", pady=(4, 0), ipady=7)
 
-        # Variantes con checkboxes
-        tk.Label(self._editor_inner, text="Variantes encontradas — selecciona cuáles reemplazar:",
-                 font=s.F_BTN_SM, bg=s.C_BG_CARD, fg=s.C_GRAY_LT).pack(anchor="w")
+        # ── Botones de acción — packed side="bottom" antes del expand ──────
+        # Esto garantiza que siempre sean visibles sin importar cuántas variantes haya
+        btn_area = tk.Frame(self._editor_inner, bg=s.C_BG_CARD)
+        btn_area.pack(side="bottom", fill="x", padx=16, pady=12)
 
-        btn_row = tk.Frame(self._editor_inner, bg=s.C_BG_CARD)
-        btn_row.pack(fill="x", pady=(4, 6))
+        PrimaryBtn(btn_area, "Aplicar a seleccionadas",
+                   command=self._apply_selected).pack(side="left")
+        SecondaryBtn(btn_area, "Aplicar a todas las variantes",
+                     command=self._apply_all).pack(side="left", padx=10)
+
+        Divider(self._editor_inner).pack(side="bottom", fill="x")
+
+        # ── Sección media: lista de variantes (expand rellena el resto) ────
+        mid = tk.Frame(self._editor_inner, bg=s.C_BG_CARD)
+        mid.pack(fill="both", expand=True, padx=16, pady=(12, 0))
+
+        tk.Label(mid, text="Variantes encontradas — selecciona cuáles reemplazar:",
+                 font=s.F_BTN_SM, bg=s.C_BG_CARD, fg=s.C_GRAY_LT).pack(anchor="w", pady=(0, 4))
+
+        btn_row = tk.Frame(mid, bg=s.C_BG_CARD)
+        btn_row.pack(fill="x", pady=(0, 6))
         GhostBtn(btn_row, "✓ Todas", command=self._select_all_variants).pack(side="left")
         GhostBtn(btn_row, "✗ Ninguna", command=self._deselect_all_variants).pack(side="left", padx=4)
 
-        v_outer = tk.Frame(self._editor_inner, bg=s.C_BG_CARD,
+        v_outer = tk.Frame(mid, bg=s.C_BG_CARD,
                            highlightbackground=s.C_BORDER, highlightthickness=1)
-        v_outer.pack(fill="both", expand=True, pady=(0, 16))
+        v_outer.pack(fill="both", expand=True)
         self._variant_scroll = ScrollableFrame(v_outer, bg=s.C_BG_CARD)
         self._variant_scroll.pack(fill="both", expand=True, padx=1, pady=1)
-
-        # Botones de acción
-        btn_f = tk.Frame(self._editor_inner, bg=s.C_BG_CARD)
-        btn_f.pack(fill="x")
-        PrimaryBtn(btn_f, "Aplicar a seleccionadas",
-                   command=self._apply_selected).pack(side="left")
-        SecondaryBtn(btn_f, "Aplicar a todas las variantes",
-                     command=self._apply_all).pack(side="left", padx=10)
 
     # ── Cargar archivo ────────────────────────────────────────────────────────
     def _load_file(self):
@@ -296,22 +587,18 @@ class NormalizerScreen(BaseScreen):
 
     def _analyze_column(self, col: str):
         series = self.df[col].dropna().astype(str)
+        unique_count = series.nunique()
+        self._programs_count_badge.config(
+            text=f"{unique_count:,} programas únicos",
+            fg=s.C_GRAY, bg=s.C_BG_CARD,
+        )
         raw_groups: dict = {}
-        
-        # Usar normalización especializada para "Programa"
-        is_programa = col.lower() == "programa"
-        
+
         for val in series:
-            # Aplicar la normalización apropiada
-            if is_programa:
-                key = _normalize_programa(val)
-            else:
-                key = _norm_key(val)
-            
+            key = self._get_norm_key(val, col)
             raw_groups.setdefault(key, {})
             raw_groups[key][val] = raw_groups[key].get(val, 0) + 1
 
-        # Solo grupos con más de 1 variante distinta
         self._groups = {
             k: {"variants": v, "total": sum(v.values())}
             for k, v in raw_groups.items()
@@ -357,13 +644,11 @@ class NormalizerScreen(BaseScreen):
         top = tk.Frame(card, bg=s.C_BG_CARD, pady=7, padx=10, cursor="hand2")
         top.pack(fill="x")
 
-        # Nombre del grupo (valor normalizado)
         tk.Label(top, text=key, font=s.F_BODY, bg=s.C_BG_CARD,
                  fg=s.C_DARK, cursor="hand2", anchor="w").pack(side="left")
         Badge(top, f"{len(info['variants'])} var · {info['total']} filas",
               kind="warn").pack(side="right")
 
-        # Sub-fila con las variantes en pequeño
         preview_vals = list(info["variants"].keys())[:3]
         preview_text = "  →  " + "  |  ".join(f'"{v}"' for v in preview_vals)
         if len(info["variants"]) > 3:
@@ -393,11 +678,10 @@ class NormalizerScreen(BaseScreen):
         self._variant_vars.clear()
 
         best = max(info["variants"], key=info["variants"].get)
-        
-        # Aplicar normalización automática si la columna es "Programa"
+
         if self._selected_col and self._selected_col.lower() == "programa":
-            normalized_value = _normalize_programa(best)
-            self._replace_var.set(normalized_value)
+            fn = _PROGRAMA_NORMALIZERS.get(self._norm_type, _norm_key)
+            self._replace_var.set(fn(best))
         else:
             self._replace_var.set(best)
 
